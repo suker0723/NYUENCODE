@@ -4,18 +4,76 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/fcntl.h>
+#include <ctype.h>
 
 #include "file.h"
 
-#define TRUNK_SIZE 10;
-char* concatenate_input(my_file *input_head, char** whole_input){
+#define TRUNK_SIZE 10
+
+int merge_tail(task* next,char** result ){
+
+    int cur_last_count=0,cur_position=0;
+    int j=1;
+    for(int i= (int)strlen(*result)-1;i>=0;i--){
+        if(isdigit((*result)[i])!=0){
+            cur_last_count+=((*result)[i]-'0')*j;
+            j*=10;
+        }else{
+            cur_position=i;
+            break;
+        }// find last and then copy it into previous
+    }
+    if((*result)[cur_position]!=next->encoded[0]){
+        strcat(*result,next->encoded);
+        return 0;
+    }else{
+        int next_first_count=0,next_position= (int)strlen(next->encoded);
+        for(int i=1;i<(int)strlen(next->encoded);i++){
+            if(isdigit(next->encoded[i])!=0){
+                next_first_count*=10;
+                next_first_count+=next->encoded[i]-'0';
+            }else{
+                next_position=i;
+                break;
+            }
+        }
+        cur_position+=1;
+        number_handler(*result,cur_last_count+next_first_count,&cur_position);
+        (*result)[cur_position]='\0';
+        strcat(*result,next->encoded+next_position);
+        return next_position;
+    }
+}
+
+task* make_task_queue(my_file *input_head, task* queue_head ){
     my_file *cur=input_head;
+    task* queue_tail=queue_head;
     while(cur!=NULL){
-        strcat(*whole_input,input_head->ptr);
+        int start=0;
+        while(start<strlen(input_head->ptr)){
+            task* new_task= malloc(sizeof(task));
+            if((start+TRUNK_SIZE)<strlen(input_head->ptr)){
+                new_task=start_task(new_task,start,start+TRUNK_SIZE,cur);
+                start+=TRUNK_SIZE;
+            }else{
+                new_task= start_task(new_task,start,strlen(input_head->ptr),cur);
+                start+=TRUNK_SIZE;
+            }
+            if(queue_head==NULL){
+                queue_head=new_task;
+                queue_tail=new_task;
+            }else if(queue_head->next_task==NULL){
+                queue_head->next_task=new_task;
+                queue_tail=new_task;
+            }else{
+                queue_tail->next_task=new_task;
+                queue_tail=queue_tail->next_task;
+            }
+        }
         cur=cur->next_file;
         close(input_head->fd);
     }
-    return *whole_input;
+    return queue_head;
 }
 
 void number_handler(char* after_encode, int count,int* offset){
@@ -30,28 +88,28 @@ void number_handler(char* after_encode, int count,int* offset){
         after_encode[(*offset)++]=reverse[index];
     }
 }
-void encode(char* input,my_file* output){
+int encode(task* cur_task){
     int count=0;
-    char* after_encode= malloc(strlen(input)*sizeof(char));
+
     int offset=0;
-    for(int i=0;i<=strlen(input);i++){
-        if(input[i]=='\0'){
-            after_encode[offset++]=input[i-1];
-            number_handler(after_encode,count,&offset);
-        }else if(i==0){
+    for(int i=cur_task->start;i<=cur_task->end;i++){
+        if(cur_task->this_file->ptr[i]=='\0'|| i==cur_task->end){
+            cur_task->encoded[offset++]=cur_task->this_file->ptr[i-1];
+            number_handler(cur_task->encoded,count,&offset);
+        }else if(i==cur_task->start){
             count+=1;
         }else{
-          if(input[i]==input[i-1]){
+          if(cur_task->this_file->ptr[i]==cur_task->this_file->ptr[i-1]){
               count+=1;
           }else{
-              after_encode[offset++]=input[i-1];
-              number_handler(after_encode,count,&offset);
+              cur_task->encoded[offset++]=cur_task->this_file->ptr[i-1];
+              number_handler(cur_task->encoded,count,&offset);
               count=1;
           }
         }
     }
-    after_encode[offset]='\0';
-    write(1,after_encode,offset);
+    cur_task->encoded[offset]='\0';
+    return offset;
 }
 
 int main(int argc, char *const argv[]) {
@@ -122,18 +180,29 @@ int main(int argc, char *const argv[]) {
             break;
         }
     }
-    if(input_head==NULL){
+    if(input_head==NULL||strlen(input_head->ptr)==0){
         fprintf(stderr,"\n\" \" empty file\n"
                 );
         exit(1);
     }
-    char* whole_input= malloc((input_size+1)*sizeof (char));
-    strcpy(whole_input,input_head->ptr);
-    if(input_head->next_file!=NULL){
-        whole_input= concatenate_input(input_head->next_file,&whole_input);
-    }
 
-    encode(whole_input,output);
+    task* queue_head=NULL;
+
+    queue_head=make_task_queue(input_head, queue_head);
+    int output_length=0;
+    task* queue_iter=queue_head;
+    while(queue_iter!=NULL){
+        output_length+=encode(queue_iter);
+        queue_iter=queue_iter->next_task;
+    }
+    char* result= malloc((strlen(queue_head->encoded)+TRUNK_SIZE)*sizeof (char));
+    strcpy(result,queue_head->encoded);
+    while(queue_head->next_task!=NULL){
+        merge_tail(queue_head->next_task,&result);
+        queue_head=queue_head->next_task;
+    }
+    write(output->fd,result, strlen(result));
+
 
     return 0;
 }

@@ -23,5 +23,7 @@ task* start_task(task *new_task,int start,int end, my_file *file){
     new_task->end=end;
     new_task->this_file=file;
     new_task->completed=false;
+    new_task->next_task=NULL;
+    new_task->encoded=malloc((end-start+1)*sizeof (char));
     return new_task;
 }

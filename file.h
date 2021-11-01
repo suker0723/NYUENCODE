@@ -28,7 +28,9 @@ typedef struct task{
     int end;
     int start;
     struct task *next_task;
+    char *encoded;
 }task;
 
 my_file *start_file(my_file *new_file,int fd, ssize_t size);
 task* start_task(task *new_task,int start,int end, my_file *file);
+void number_handler(char* after_encode, int count,int* offset);
