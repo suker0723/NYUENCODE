@@ -24,7 +24,7 @@ typedef struct my_file{
 }my_file;
 
 typedef struct task{
-    bool completed;
+    bool being_processed;
     my_file* this_file;
     int end;
     int start;
@@ -34,6 +34,8 @@ typedef struct task{
 
 typedef struct thread_pool{
     task* head;
+    task* tail;
+    task* current;
     int queue_length;
     int threads_count;
     int pending_task;
@@ -45,6 +47,9 @@ typedef struct thread_pool{
 
 my_file *start_file(my_file *new_file,int fd, ssize_t size);
 task* start_task(task *new_task,int start,int end, my_file *file);
-thread_pool* start_thread_pool(thread_pool *new_thread_pool,int threads_count,task* head, int queue_length);
+thread_pool* start_thread_pool(thread_pool *new_thread_pool,int threads_count,task* head);
 void number_handler(char* after_encode, int count,int* offset);
 static void *work_thread(void *new_thread_pool);
+int encode(task* cur_task);
+int add_task_to_thread(thread_pool *cur_pool,task* new_task);
+int destroy_thread_pool(thread_pool *cur_pool) ;

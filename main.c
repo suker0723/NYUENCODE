@@ -12,17 +12,8 @@
 
 int merge_tail(task* next,char** result ){
 
-    int cur_last_count=0,cur_position=0;
+    int cur_position=0;
     unsigned char j,k;
-//    for(int i= (int)strlen(*result)-1;i>=0;i--){
-//        if(isdigit((*result)[i])!=0){
-//            cur_last_count+=((*result)[i]-'0')*j;
-//            j*=10;
-//        }else{
-//            cur_position=i;
-//            break;
-//        }// find last and then copy it into previous
-//    }
     j=(*result)[(int)strlen(*result)-1];
     k=(next->encoded[1]);
     cur_position=(int)strlen(*result)-1;
@@ -35,31 +26,11 @@ int merge_tail(task* next,char** result ){
         strcat(*result,next->encoded+2);
         return 2;
     }
-//    if((*result)[cur_position]!=next->encoded[0]){
-//        strcat(*result,next->encoded);
-//        return 0;
-//    }else{
-//        int next_first_count=0,next_position= (int)strlen(next->encoded);
-//        for(int i=1;i<(int)strlen(next->encoded);i++){
-//            if(isdigit(next->encoded[i])!=0){
-//                next_first_count*=10;
-//                next_first_count+=next->encoded[i]-'0';
-//            }else{
-//                next_position=i;
-//                break;
-//            }
-//        }
-//        cur_position+=1;
-//        number_handler(*result,cur_last_count+next_first_count,&cur_position);
-//        (*result)[cur_position]='\0';
-//        strcat(*result,next->encoded+next_position);
-//        return next_position;
-//    }
+
 }
 
-task* make_task_queue(my_file *input_head, task* queue_head ){
+void make_task_queue(my_file *input_head, thread_pool* cur_pool){
     my_file *cur=input_head;
-    task* queue_tail=queue_head;
     while(cur!=NULL){
         int start=0;
         while(start<strlen(input_head->ptr)){
@@ -71,34 +42,17 @@ task* make_task_queue(my_file *input_head, task* queue_head ){
                 new_task= start_task(new_task,start,strlen(input_head->ptr),cur);
                 start+=TRUNK_SIZE;
             }
-            if(queue_head==NULL){
-                queue_head=new_task;
-                queue_tail=new_task;
-            }else if(queue_head->next_task==NULL){
-                queue_head->next_task=new_task;
-                queue_tail=new_task;
-            }else{
-                queue_tail->next_task=new_task;
-                queue_tail=queue_tail->next_task;
-            }
+
+            add_task_to_thread(cur_pool, new_task);
         }
         cur=cur->next_file;
         close(input_head->fd);
     }
-    return queue_head;
+
 }
 
 void number_handler(char* after_encode, int count,int* offset){
-   // char* reverse= malloc(sizeof (char)*10);
- //   int index=0;
-//    while(count>0){
-//        char digit=(char)('0'+(count%10));
-//        count/=10;
-//        reverse[index++]=digit;
-//    }
-//    while(--index>=0){
-//        after_encode[(*offset)++]=reverse[index];
-//    }
+
     after_encode[(*offset)++]=(unsigned char)count;
 }
 int encode(task* cur_task){
@@ -198,18 +152,12 @@ int main(int argc, char *const argv[]) {
                 );
         exit(1);
     }
- //   thread_pool *cur_pool=NULL;
-    task* queue_head=NULL;
-   // cur_pool=start_thread_pool(cur_pool,threads_count,queue_head);
+    thread_pool *cur_pool=NULL;
 
-
-    queue_head=make_task_queue(input_head, queue_head);
-    int output_length=0;
-    task* queue_iter=queue_head;
-    while(queue_iter!=NULL){
-        output_length+=encode(queue_iter);
-        queue_iter=queue_iter->next_task;
-    }
+    cur_pool=start_thread_pool(cur_pool,threads_count,NULL);
+    make_task_queue(input_head, cur_pool);
+    task* queue_head=cur_pool->head;
+//    destroy_thread_pool(cur_pool);
     char* result= malloc((strlen(queue_head->encoded)+TRUNK_SIZE)*sizeof (char));
     strcpy(result,queue_head->encoded);
     while(queue_head->next_task!=NULL){
